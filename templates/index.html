@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voice AI Assistant</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+    }
+
+    #chat {
+      width: 80%;
+      height: 400px;
+      margin: 20px auto;
+      overflow-y: auto;
+      border: 1px solid #334155;
+      padding: 10px;
+      border-radius: 10px;
+      background: #020617;
+    }
+
+    .msg {
+      margin: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: left;
+    }
+
+    .user { background: #1e293b; }
+    .bot { background: #334155; }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover { background: #1d4ed8; }
+  </style>
+</head>
+
+<body>
+
+<h1>🤖 Voice AI Assistant</h1>
+<p align="center">Start speaking on microphone, say 'Hello'</p>
+
+<div id="chat"></div>
+
+<button onclick="sendText()">Send Test</button>
+<button onclick="startListening()">🎤 Speak</button>
+<button onclick="stopJarvis()">⛔ Stop</button>
+
+<script>
+let recognition;
+let controller = null;   // 🔥 IMPORTANT FIX
+
+const chatDiv = document.getElementById("chat");
+
+// ---------------- UI ----------------
+function addMessage(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerText = text;
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+// ---------------- BACKEND STREAM ----------------
+async function sendToBackend(text) {
+
+  controller = new AbortController();
+
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ user_input: text }),
+    signal: controller.signal
+  });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  let botText = "";
+
+  const botDiv = document.createElement("div");
+  botDiv.className = "msg bot";
+  chatDiv.appendChild(botDiv);
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      botText += chunk;
+      botDiv.innerText = "🤖 " + botText;
+    }
+
+    speak(botText);
+
+  } catch (err) {
+    if (err.name === "AbortError") {
+      botDiv.innerText += "\n⛔ Stopped.";
+    } else {
+      console.error(err);
+    }
+  }
+}
+
+// ---------------- TEST ----------------
+window.sendText = async function() {
+  const text = "Hello";
+  addMessage("👤 " + text, "user");
+  await sendToBackend(text);
+}
+
+// ---------------- TTS ----------------
+function speak(text) {
+  speechSynthesis.cancel();
+
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1;
+  utter.pitch = 1;
+
+  speechSynthesis.speak(utter);
+}
+
+// ---------------- STOP BUTTON (FIXED) ----------------
+window.stopJarvis = function() {
+
+  // Stop speech
+  speechSynthesis.cancel();
+
+  // Stop mic
+  if (recognition) recognition.stop();
+
+  // 🔥 Stop streaming request
+  if (controller) {
+    controller.abort();
+    controller = null;
+  }
+}
+
+// ---------------- VOICE INPUT ----------------
+window.startListening = function() {
+
+  if (!("webkitSpeechRecognition" in window)) {
+    alert("Use Chrome");
+    return;
+  }
+
+  recognition = new webkitSpeechRecognition();
+
+  recognition.lang = "en-IN";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    addMessage("🎤 Listening...", "bot");
+  };
+
+  recognition.onresult = async (event) => {
+
+    const text = event.results[event.results.length - 1][0].transcript;
+
+    recognition.stop();
+
+    addMessage("👤 " + text, "user");
+
+    await sendToBackend(text);
+  };
+
+  recognition.start();
+};
+</script>
+
+</body>
+</html>
