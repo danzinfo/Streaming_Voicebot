@@ -40,8 +40,7 @@ It supports *speech-to-text, AI streaming responses, and text-to-speech*, creati
 
 ## Project Structure
 
----
-
+```
 Streaming Voicebot/
 │
 ├── app/
@@ -56,9 +55,7 @@ Streaming Voicebot/
 ├── Dockerfile
 └── README.md
 
-
-
----
+```
 
 ## Installation (Local Setup)
 
